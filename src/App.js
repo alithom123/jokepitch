@@ -1,87 +1,117 @@
-import React, { Component }  from 'react'
-import { Switch, Route, Redirect } from 'react-router-dom'
-import firebase from 'firebase/app'
-import 'firebase/auth'
+import React, { Component } from "react"
+import { Switch, Route, Redirect, withRouter } from "react-router-dom"
+import firebase from "firebase/app"
+import "firebase/auth"
+import SplashScreen from "./Pages/SplashScreen.js"
+import Home from "./Pages/Home.js"
+import Profile from "./Pages/Profile.js"
+import Login from "./Pages/Login.js"
 
-export default class App extends Component {
-	constructor(props) {
-		super(props)
+class App extends Component {
+  constructor(props) {
+    super(props)
 
-		this.state = {
-			user: null, // user data from firestore: name, bio, photoUrl, id
-			username: 'Alex',
-			loading: true
-		}
-	}
+    this.state = {
+      user: null, // user data from firestore: name, bio, photoUrl, id
+      username: "Alex",
+      loading: true,
+      redirect: null,
+    }
+  }
 
-	componentDidMount() {
-		// assign listeners
+  componentDidMount() {
+    // assign listeners
+    console.log("App ComponentDidMount")
 
-		this.authListener = firebase.auth().onAuthStateChanged(authUser => {
-			if(authUser) {
+    this.authListener = firebase.auth().onAuthStateChanged((authUser) => {
+      if (authUser) {
+        console.log("has auth user")
+        this.getUserData(authUser.uid)
+      } else {
+        // redirect to login
 
-				this.getUserData(authUser.uid)
+        // <Redirect to="/" />
+        console.log("no auth user")
+        this.setState({
+          loading: false,
+          redirect: { path: "/login" },
+        })
+      }
+    })
+  }
 
-			} else {
+  componentWillUnmount() {
+    // remove listeners
+    console.log("App ComponentWillUnmount")
+    if (this.authListener) this.authListener()
 
-				// redirect to login
-			}
-			
-		})
+    if (this.userListener) this.userListener()
+  }
 
-	}
+  getUserData = (userId) => {
+    this.userListener = firebase
+      .firestore()
+      .collection("users")
+      .doc(userId)
+      .onSnapshot((doc) => {
+        if (doc.exists) {
+          // save user to state and render the path
+          this.setState({
+            user: doc.data(),
+            redirect: null,
+            loading: false,
+          })
+        } else {
+          // redirect to create profile
+          this.setState({
+            loading: false,
+            redirect: { path: "/create-profile" },
+          })
+        }
+      })
+  }
 
-	componentWillUnmount() {
-		// remove listeners
-		if(this.authListener)
-			this.authListener()
+  render() {
+    console.log("App render")
+    let { user, loading, redirect } = this.state
+    let { location } = this.props
 
-		if(this.userListener)
-			this.userListener()
-	}
+    console.log("location = " + location.pathname)
 
-	getUserData = (userId) => {
-		this.userListener = firebase.firestore().collection('users').doc(userId)
-			.onSnapshot(doc => {
+    if (loading) {
+      console.log("App SplashScreen")
+      return <SplashScreen />
+    }
 
-				if(doc.exists) {
+    // if (!user && location.pathname != "/login") {
+    //   console.log("App redirecting..")
+    //   return <Redirect to="/login" />
+    // }
 
-					// save user to state and render the path
+    if (redirect && location.pathname !== redirect.path) {
+      console.log("App redirecting..")
+      return <Redirect to={redirect.path} />
+    }
 
-				} else {
+    console.log("App default render")
 
-					// redirect to create profile
+    // Redirects: login, create profile
 
-				}
-				
-			})
-	}
-
-	render() {
-		if(this.state.loading) return <SplashScreen/>
-
-		// Redirects: login, create profile
-
-		// do some logic
-		if(user)
-			return <Redirect to='/'/>
-
-		return (
-			<div>
-				Hello World !!!!
-			</div>
-		)
-		/**
-		return (
-			<Switch>
-				<Route path='/profile'>
-					<Profile user={user}/>
-				</Route>
-				<Route path='/'>
-					<Home user={user}/>
-				</Route>
-			</Switch>
-		)
-		*/
-	}
+    // do some logic
+    return (
+      <Switch>
+        <Route user={user} path="/login">
+			<Login user={user} />
+        </Route>
+        <Route path="/profile">
+          <Profile user={user} />
+        </Route>
+        <Route path="/">
+          <Home user={user} />
+        </Route>
+      </Switch>
+    )
+  }
 }
+
+export default withRouter(App)
